@@ -4,9 +4,9 @@ from collections import deque
 # -------------------- Конфиг --------------------
 WIDTH, HEIGHT = 1000, 720
 CANVAS_RECT = pygame.Rect(0, 60, WIDTH, HEIGHT-60)
-UI_HEIGHT = 60
-BG = (255,255,255)
-BORDER_COLOR = (0,0,0)   # цвет «границы» для режима 1в (обход границы)
+UI_HEIGHT = 120
+BG = (255, 255, 255)
+BORDER_COLOR = (0, 0, 0)   # цвет «границы» для режима 1в (обход границы)
 # ---- Параметры заливки картинкой ----
 PATTERN_MODE = "tile"      # "stamp" | "tile" | "tile_fixed"
 PATTERN_ANCHOR = "center"  # "click" | "center"
@@ -29,11 +29,11 @@ canvas.fill(BG)
 try:
     pattern_img = pygame.image.load("pattern.png").convert_alpha()
 except:
-    pattern_img = pygame.Surface((8,8), pygame.SRCALPHA)
+    pattern_img = pygame.Surface((8, 8), pygame.SRCALPHA)
     for y in range(8):
         for x in range(8):
-            c = (220,220,220,255) if (x+y)%2==0 else (180,180,180,255)
-            pattern_img.set_at((x,y), c)
+            c = (220, 220, 220, 255) if (x+y) % 2 == 0 else (180, 180, 180, 255)
+            pattern_img.set_at((x, y), c)
 
 # -------------------- Утилиты --------------------
 def in_canvas(x, y):
@@ -46,7 +46,7 @@ def set_px(surf, x, y, color):
     surf.set_at((x, y), color)
 
 def draw_text(s, x, y, color=(0,0,0)):
-    screen.blit(font.render(s, True, color), (x,y))
+    screen.blit(font.render(s, True, color), (x, y))
 
 # -------------------- Инструменты --------------------
 TOOL_DRAW        = "draw"
@@ -58,89 +58,134 @@ TOOL_WU          = "wu"
 TOOL_TRIANGLE    = "triangle"
 
 tool = TOOL_DRAW
-brush_color = (0,0,0)
-fill_color = (255,230,120)
+brush_color = (0, 0, 0)
+fill_color = (255, 230, 120)
 
 last_pos = None           # для непрерывного рисования
 line_pts = []             # 2 точки для линий
-tri_pts  = []             # 3 точки для треугольника
+tri_pts = []             # 3 точки для треугольника
 
 # -------------------- Рисование линий --------------------
 def bresenham_line(surf, x0, y0, x1, y1, color):
-    dx = abs(x1-x0); dy = abs(y1-y0)
+    dx = abs(x1-x0)
+    dy = abs(y1-y0)
     sx = 1 if x0 < x1 else -1
     sy = 1 if y0 < y1 else -1
     err = dx - dy
     while True:
-        if in_canvas(x0,y0): set_px(surf, x0,y0,color)
-        if x0==x1 and y0==y1: break
+        if in_canvas(x0, y0):
+            set_px(surf, x0, y0, color)
+        if x0 == x1 and y0 == y1:
+            break
         e2 = 2*err
-        if e2 > -dy: err -= dy; x0 += sx
-        if e2 <  dx: err += dx; y0 += sy
+        if e2 > -dy:
+            err -= dy
+            x0 += sx
+        if e2 < dx:
+            err += dx
+            y0 += sy
 
 def wu_line(surf, x0, y0, x1, y1, color):
-    def ipart(x): return int(math.floor(x))
-    def fpart(x): return x - math.floor(x)
-    def rfpart(x): return 1 - fpart(x)
+    def ipart(x):
+        return int(math.floor(x))
+
+    def fpart(x):
+        return x - math.floor(x)
+
+    def rfpart(x):
+        return 1 - fpart(x)
+
     def plot(x, y, a):
         if in_canvas(x,y):
             r,g,b = get_px(surf, x,y)
             rr = int(r*(1-a) + color[0]*a)
             gg = int(g*(1-a) + color[1]*a)
             bb = int(b*(1-a) + color[2]*a)
-            set_px(surf, x,y,(rr,gg,bb))
+            set_px(surf, x,y,(rr, gg, bb))
+
     steep = abs(y1-y0) > abs(x1-x0)
-    if steep: x0,y0,x1,y1 = y0,x0,y1,x1
-    if x0 > x1: x0,x1,y0,y1 = x1,x0,y1,y0
-    dx = x1-x0; dy = y1-y0
+    if steep:
+        x0, y0, x1, y1 = y0, x0, y1, x1
+    if x0 > x1:
+        x0, x1, y0, y1 = x1, x0, y1, y0
+
+    dx = x1-x0
+    dy = y1-y0
     gradient = dy/dx if dx else 0.0
-    xend = round(x0); yend = y0 + gradient*(xend-x0)
-    xpxl1 = int(xend); ypxl1 = ipart(yend)
-    if steep: plot(ypxl1,   xpxl1, rfpart(yend)); plot(ypxl1+1, xpxl1, fpart(yend))
-    else:     plot(xpxl1, ypxl1,   rfpart(yend)); plot(xpxl1, ypxl1+1, fpart(yend))
+    xend = round(x0)
+    yend = y0 + gradient*(xend-x0)
+    xpxl1 = int(xend)
+    ypxl1 = ipart(yend)
+    if steep:
+        plot(ypxl1,   xpxl1, rfpart(yend))
+        plot(ypxl1+1, xpxl1, fpart(yend))
+    else:
+        plot(xpxl1, ypxl1,   rfpart(yend))
+        plot(xpxl1, ypxl1+1, fpart(yend))
     intery = yend + gradient
-    xend = round(x1); yend = y1 + gradient*(xend-x1)
-    xpxl2 = int(xend); ypxl2 = ipart(yend)
+    xend = round(x1)
+    yend = y1 + gradient*(xend-x1)
+    xpxl2 = int(xend)
+    ypxl2 = ipart(yend)
     for x in range(xpxl1+1, xpxl2):
-        if steep: plot(ipart(intery),   x, rfpart(intery)); plot(ipart(intery)+1, x, fpart(intery))
-        else:     plot(x, ipart(intery),   rfpart(intery)); plot(x, ipart(intery)+1, fpart(intery))
+        if steep:
+            plot(ipart(intery),   x, rfpart(intery))
+            plot(ipart(intery)+1, x, fpart(intery))
+        else:
+            plot(x, ipart(intery),   rfpart(intery))
+            plot(x, ipart(intery)+1, fpart(intery))
         intery += gradient
-    if steep: plot(ypxl2,   xpxl2, rfpart(yend)); plot(ypxl2+1, xpxl2, fpart(yend))
-    else:     plot(xpxl2, ypxl2,   rfpart(yend)); plot(xpxl2, ypxl2+1, fpart(yend))
+    if steep:
+        plot(ypxl2,   xpxl2, rfpart(yend))
+        plot(ypxl2+1, xpxl2, fpart(yend))
+    else:
+        plot(xpxl2, ypxl2,   rfpart(yend))
+        plot(xpxl2, ypxl2+1, fpart(yend))
 
 # -------------------- Треугольник (градиент) --------------------
 def area2(a,b,c):
     return (b[0]-a[0])*(c[1]-a[1]) - (c[0]-a[0])*(b[1]-a[1])
 
-def fill_triangle_barycentric(surf, A,B,C, colA,colB,colC):
-    S = area2(A,B,C)
-    if S == 0: return
-    xmin = max(0, min(A[0],B[0],C[0])); xmax = min(surf.get_width()-1, max(A[0],B[0],C[0]))
-    ymin = max(0, min(A[1],B[1],C[1])); ymax = min(surf.get_height()-1, max(A[1],B[1],C[1]))
+def fill_triangle_barycentric(surf, A, B, C, colA, colB, colC):
+    S = area2(A, B, C)
+    if S == 0:
+        return
+    xmin = max(0, min(A[0], B[0], C[0]))
+    xmax = min(surf.get_width()-1, max(A[0], B[0], C[0]))
+    ymin = max(0, min(A[1], B[1], C[1]))
+    ymax = min(surf.get_height()-1, max(A[1], B[1], C[1]))
+
     for y in range(ymin, ymax+1):
         for x in range(xmin, xmax+1):
-            P = (x+0.5, y+0.5)
-            a = area2(B,C,P)/S; b = area2(C,A,P)/S; c = area2(A,B,P)/S
-            if a >= -1e-6 and b >= -1e-6 and c >= -1e-6:
+            P = (x, y)
+            a = area2(B, C, P)/S
+            b = area2(C, A, P)/S
+            c = area2(A, B, P)/S
+            if a >= 0 and b >= 0 and c >= 0:
                 r = int(colA[0]*a + colB[0]*b + colC[0]*c)
                 g = int(colA[1]*a + colB[1]*b + colC[1]*c)
                 bcol = int(colA[2]*a + colB[2]*b + colC[2]*c)
-                set_px(surf, x,y,(max(0,min(255,r)), max(0,min(255,g)), max(0,min(255,bcol))))
+                set_px(surf, x, y, (max(0, min(255, r)), max(0,min(255, g)), max(0, min(255, bcol))))
 
 # -------------------- Заливки (scanline) --------------------
 def scanline_fill_color(surf, seed, target, repl):
-    if repl == target: return
-    x0,y0 = seed
-    if not in_canvas(x0,y0): return
-    if get_px(surf, x0,y0) != target: return
+    if repl == target:
+        return
+    x0, y0 = seed
+    if not in_canvas(x0, y0):
+        return
+    if get_px(surf, x0, y0) != target:
+        return
 
     # расширяемся по строке
     xl = x0
-    while xl-1 >= 0 and get_px(surf, xl-1, y0) == target: xl -= 1
+    while xl-1 >= 0 and get_px(surf, xl-1, y0) == target:
+        xl -= 1
     xr = x0
-    while xr+1 < surf.get_width() and get_px(surf, xr+1, y0) == target: xr += 1
+    while xr+1 < surf.get_width() and get_px(surf, xr+1, y0) == target:
+        xr += 1
     for x in range(xl, xr+1):
-        set_px(surf, x,y0, repl)
+        set_px(surf, x, y0, repl)
 
     # строки выше/ниже
     for ny in (y0-1, y0+1):
@@ -148,7 +193,7 @@ def scanline_fill_color(surf, seed, target, repl):
             x = xl
             while x <= xr:
                 if get_px(surf, x, ny) == target:
-                    scanline_fill_color(surf, (x,ny), target, repl)
+                    scanline_fill_color(surf, (x, ny), target, repl)
                     while x <= xr and get_px(surf, x, ny) == repl:
                         x += 1
                 x += 1
@@ -239,31 +284,32 @@ def scanline_fill_pattern(surf, seed, target, pattern, anchor, tiled=True, visit
 # -------------------- 1в: Выделение границы по клику внутри --------------------
 # Идея: BFS по внутренней области (все пиксели != BORDER_COLOR), параллельно набираем соседей == BORDER_COLOR — это граница.
 
-NBS4 = [(1,0),(-1,0),(0,1),(0,-1)]
+NBS4 = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
 def boundary_from_inside(surf, seed, border_color=BORDER_COLOR):
-    w,h = surf.get_width(), surf.get_height()
-    sx,sy = seed
-    if not in_canvas(sx,sy): return []
-    if get_px(surf, sx,sy) == border_color:
+    w, h = surf.get_width(), surf.get_height()
+    sx, sy = seed
+    if not in_canvas(sx, sy):
+        return []
+    if get_px(surf, sx, sy) == border_color:
         return []  # клик по самой границе — для простоты ничего не делаем
 
-    q = deque([(sx,sy)])
-    seen = set([(sx,sy)])
+    q = deque([(sx, sy)])
+    seen = set([(sx, sy)])
     boundary = set()
 
     while q:
-        x,y = q.popleft()
-        for dx,dy in NBS4:
-            nx,ny = x+dx, y+dy
+        x, y = q.popleft()
+        for dx, dy in NBS4:
+            nx, ny = x+dx, y+dy
             if 0 <= nx < w and 0 <= ny < h:
-                c = get_px(surf, nx,ny)
+                c = get_px(surf, nx, ny)
                 if c == border_color:
-                    boundary.add((nx,ny))
+                    boundary.add((nx, ny))
                 else:
-                    if (nx,ny) not in seen:
-                        seen.add((nx,ny))
-                        q.append((nx,ny))
+                    if (nx, ny) not in seen:
+                        seen.add((nx, ny))
+                        q.append((nx, ny))
     return list(boundary)
 
 def draw_points(surf, pts, color=(255,0,0)):
@@ -301,15 +347,15 @@ brush_palette_rects = []
 fill_palette_rects  = []
 
 def draw_palette(x0, y0, label, current_color, rects_list):
-    draw_text(label, x0, y0-16)
+    draw_text(label, x0, y0)
     rects_list.clear()
     for i, c in enumerate(PALETTE):
-        r = pygame.Rect(x0 + i*24, y0, 20, 20)
+        r = pygame.Rect(x0 + i*24, y0+20, 20, 20)
         rects_list.append((r,c))
         pygame.draw.rect(screen, c, r)
-        pygame.draw.rect(screen, (80,80,80), r, 1)
+        pygame.draw.rect(screen, (80, 80, 80), r, 1)
         if c == current_color:
-            pygame.draw.rect(screen, (0,0,0), r.inflate(4,4), 2)
+            pygame.draw.rect(screen, (0, 0, 0), r.inflate(4, 4), 2)
 
 # -------------------- Главный цикл --------------------
 def main():
@@ -321,7 +367,8 @@ def main():
     while True:
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
-                pygame.quit(); sys.exit()
+                pygame.quit()
+                sys.exit()
 
             elif e.type == pygame.MOUSEBUTTONDOWN:
                 if e.button == 1:
@@ -332,7 +379,8 @@ def main():
                             if b.hit(e.pos):
                                 if b.tool_id is None:   # очистка
                                     canvas.fill(BG)
-                                    line_pts.clear(); tri_pts.clear()
+                                    line_pts.clear()
+                                    tri_pts.clear()
                                 else:
                                     tool = b.tool_id
                                 break
@@ -392,22 +440,24 @@ def main():
                             print(f"boundary points: {len(boundary)}")
 
                         elif tool in (TOOL_BRESENHAM, TOOL_WU):
-                            line_pts.append((x,y))
+                            line_pts.append((x, y))
                             if len(line_pts) >= 2:
                                 (x0,y0),(x1,y1) = line_pts[-2], line_pts[-1]
                                 if tool == TOOL_BRESENHAM:
                                     bresenham_line(canvas, x0,y0,x1,y1, brush_color)
                                 else:
                                     wu_line(canvas, x0,y0,x1,y1, brush_color)
-                            if len(line_pts) > 2: line_pts = line_pts[-2:]
+                            if len(line_pts) > 2:
+                                line_pts = line_pts[-2:]
 
                         elif tool == TOOL_TRIANGLE:
-                            tri_pts.append((x,y))
+                            tri_pts.append((x, y))
                             if len(tri_pts) >= 3:
-                                A,B,C = tri_pts[-3], tri_pts[-2], tri_pts[-1]
-                                fill_triangle_barycentric(canvas, A,B,C,
-                                                          (255,0,0), (0,255,0), (0,128,255))
-                            if len(tri_pts) > 3: tri_pts = tri_pts[-3:]
+                                A, B, C = tri_pts[-3], tri_pts[-2], tri_pts[-1]
+                                fill_triangle_barycentric(canvas, A, B, C,
+                                                          (255, 0, 0), (0, 255, 0), (0, 128, 255))
+                            if len(tri_pts) > 3:
+                                tri_pts = tri_pts[-3:]
 
                 elif e.button == 3:
                     # ПКМ — сохранить PNG
@@ -425,21 +475,21 @@ def main():
                 last_pos = (x,y)
 
         # рендер UI
-        screen.fill((235,235,235))
+        screen.fill((235, 235, 235))
         # кнопки
         for b in buttons:
             b.draw(active=(b.tool_id == tool))
 
         # палитры
-        draw_palette(10, 40, "Кисть:", brush_color, brush_palette_rects)
-        draw_palette(300, 40, "Заливка:", fill_color, fill_palette_rects)
+        draw_palette(10, 55, "Кисть:", brush_color, brush_palette_rects)
+        draw_palette(300, 55, "Заливка:", fill_color, fill_palette_rects)
 
         # холст
         screen.blit(canvas, (0, UI_HEIGHT))
         pygame.draw.rect(screen, (150,150,150), (0, UI_HEIGHT, WIDTH, HEIGHT-UI_HEIGHT), 1)
 
         # подсказки
-        draw_text("ЛКМ по холсту — действие текущего инструмента. ПКМ — сохранить out.png", 480, 40, (40,40,40))
+        draw_text("ЛКМ по холсту — действие текущего инструмента. ПКМ — сохранить out.png", 10, 105, (40, 40, 40))
 
         pygame.display.flip()
         clock.tick(120)

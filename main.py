@@ -465,12 +465,11 @@ def main():
 
                         elif tool == TOOL_TRIANGLE:
                             tri_pts.append((x, y))
-                            if len(tri_pts) >= 3:
+                            if len(tri_pts) == 3:
                                 A, B, C = tri_pts[-3], tri_pts[-2], tri_pts[-1]
                                 fill_triangle_barycentric(canvas, A, B, C,
                                                           (255, 0, 0), (0, 255, 0), (0, 128, 255))
-                            if len(tri_pts) > 3:
-                                tri_pts = tri_pts[-3:]
+                                tri_pts.clear()
 
                 elif e.button == 3:
                     # ПКМ — сохранить PNG

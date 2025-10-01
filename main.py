@@ -297,33 +297,57 @@ def scanline_fill_pattern(surf, seed, target, pattern, anchor, tiled=True, visit
 # -------------------- 1в: Выделение границы по клику внутри --------------------
 # Идея: BFS по внутренней области (все пиксели != BORDER_COLOR), параллельно набираем соседей == BORDER_COLOR — это граница.
 
-NBS4 = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+NBS4 = [(1,0),(-1,0),(0,1),(0,-1)]
+# все пиксели этих цветов считаем НЕДОСТУПНЫМИ (границей)
+BORDER_COLORS = {BORDER_COLOR}
 
-def boundary_from_inside(surf, seed, border_color=BORDER_COLOR):
+def is_border_color(rgb):
+    return rgb in BORDER_COLORS
+
+def inner_contour_from_inside(surf, seed):
+    """
+    Возвращает список пикселей ВНУТРИ области, прилегающих к ЛЮБОЙ границе из BORDER_COLORS.
+    Каждое последующее применение (после отрисовки) даёт следующее «кольцо».
+    """
     w, h = surf.get_width(), surf.get_height()
     sx, sy = seed
     if not in_canvas(sx, sy):
         return []
-    if get_px(surf, sx, sy) == border_color:
-        return []  # клик по самой границе — для простоты ничего не делаем
 
+    # если кликнули прямо по границе — сместимся в первый внутренний пиксель
+    if is_border_color(get_px(surf, sx, sy)):
+        for dx, dy in NBS4:
+            nx, ny = sx+dx, sy+dy
+            if 0 <= nx < w and 0 <= ny < h and not is_border_color(get_px(surf, nx, ny)):
+                sx, sy = nx, ny
+                break
+        else:
+            return []
+
+    from collections import deque
     q = deque([(sx, sy)])
-    seen = set([(sx, sy)])
-    boundary = set()
+    visited = [[False]*w for _ in range(h)]
+    visited[sy][sx] = True
+
+    inner_contour = set()
 
     while q:
         x, y = q.popleft()
+        adj_border = False
         for dx, dy in NBS4:
             nx, ny = x+dx, y+dy
             if 0 <= nx < w and 0 <= ny < h:
                 c = get_px(surf, nx, ny)
-                if c == border_color:
-                    boundary.add((nx, ny))
+                if is_border_color(c):
+                    adj_border = True
                 else:
-                    if (nx, ny) not in seen:
-                        seen.add((nx, ny))
+                    if not visited[ny][nx]:
+                        visited[ny][nx] = True
                         q.append((nx, ny))
-    return list(boundary)
+        if adj_border:
+            inner_contour.add((x, y))
+
+    return list(inner_contour)
 
 def draw_points(surf, pts, color=(255,0,0)):
     for x,y in pts:
@@ -447,10 +471,20 @@ def main():
                             scanline_fill_pattern(canvas, (x, y), target, pattern_img, (ax, ay), tiled=tiled)
 
                         elif tool == TOOL_BOUNDARY:
-                            # 1в: по клику внутри — извлечь и прорисовать границу
-                            boundary = boundary_from_inside(canvas, (x,y), border_color=BORDER_COLOR)
-                            draw_points(canvas, boundary, (255,0,0))
-                            print(f"boundary points: {len(boundary)}")
+
+                            inner = inner_contour_from_inside(canvas, (x, y))
+
+                            # рисуем обводку текущим цветом заливки (или любым вашим)
+
+                            draw_points(canvas, inner, fill_color)
+
+                            # добавляем ЭТОТ цвет в множество границ, чтобы следующее нажатие рисовало ещё глубже
+
+                            if fill_color != BG:  # на всякий случай не добавляем белый фон
+
+                                BORDER_COLORS.add(fill_color)
+
+                            print(f"inner-contour points: {len(inner)}; barrier colors: {len(BORDER_COLORS)}")
 
                         elif tool in (TOOL_BRESENHAM, TOOL_WU):
                             line_pts.append((x, y))
